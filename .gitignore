@@ -1,0 +1,65 @@
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+*.lnk
+
+# Dependencias y compilaciones
+/node_modules
+/dist
+/build
+/app-update.yml
+
+# Archivos de entorno y configuración local
+.env
+.env.local
+.env*.local
+
+# Archivos generados por la aplicación
+/remitos/*.xlsx
+/data.json
+/remitoCounter.json
+
+# Logs y reportes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor/IDE
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Archivos de usuario
+*.user
+*.userosscache
+
+# Paquetes de sistema
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos de caché
+.cache
+.tempcache
+
+# Electron builder
+*.blockmap
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.rpm

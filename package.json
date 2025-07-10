@@ -1,0 +1,62 @@
+{
+  "name": "generador-remitos",
+  "version": "1.0.0",
+  "description": "Aplicación para generación automática de remitos",
+  "author": "Tu Nombre <tu@email.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "build-icons": "electron-icon-builder --input=icon.png --output=build --flatten"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "electron": "28.1.0",
+    "electron-builder": "24.9.1",
+    "electron-icon-builder": "^2.0.1"
+  },
+  "build": {
+    "appId": "com.tuempresa.generadorremitos",
+    "productName": "Generador de Remitos",
+    "copyright": "Copyright © 2025",
+    "files": [
+      "**/*",
+      "!node_modules/{@types,.cache}",
+      "!remitos/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "data.json",
+        "to": "."
+      },
+      {
+        "from": "remitoCounter.json",
+        "to": "."
+      },
+      {
+        "from": "remitos",
+        "to": "remitos"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "perMachine": true
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": false
+  }
+}
