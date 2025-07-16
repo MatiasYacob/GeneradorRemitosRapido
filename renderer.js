@@ -8,6 +8,14 @@ window.electronAPI.getData().then(data => {
 });
 
 function mostrarVista(vistaId) {
+  // Actualizar tabs activos
+  document.querySelectorAll('.nav-link').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  const btn = document.querySelector(`.nav-link[onclick="mostrarVista('${vistaId}')"]`);
+  if (btn) btn.classList.add('active');
+
+  // Mostrar solo la vista seleccionada
   document.getElementById("vistaProductos").classList.add("d-none");
   document.getElementById("vistaRemito").classList.add("d-none");
   document.getElementById(vistaId).classList.remove("d-none");
@@ -18,14 +26,17 @@ async function agregarProducto() {
   const id = document.getElementById("prodId").value.trim();
   const nombre = document.getElementById("prodNombre").value.trim();
   const precio = parseFloat(document.getElementById("prodPrecio").value.trim());
+  const errorDiv = document.getElementById("errorAgregarProducto");
+
+  errorDiv.textContent = "";
 
   if (!id || !nombre || isNaN(precio)) {
-    alert("Completa todos los campos del producto.");
+    errorDiv.textContent = "Completa todos los campos del producto correctamente.";
     return;
   }
 
   if (productos.some(p => p.id === id)) {
-    alert("Ya existe un producto con este ID.");
+    errorDiv.textContent = "Ya existe un producto con este ID.";
     return;
   }
 
@@ -33,10 +44,11 @@ async function agregarProducto() {
   await window.electronAPI.saveProductos(productos);
   actualizarListaProductos();
 
-  // Limpiar campos
+  // Limpiar campos y error
   document.getElementById("prodId").value = "";
   document.getElementById("prodNombre").value = "";
   document.getElementById("prodPrecio").value = "";
+  errorDiv.textContent = "";
 }
 
 function actualizarListaProductos() {
@@ -54,7 +66,7 @@ function actualizarListaProductos() {
   });
 }
 
-// Agregar producto al remito
+// Agregar producto al remito (pone ID en el input y pone foco en cantidad)
 function agregarAlRemito(id) {
   const prod = productos.find(p => p.id === id);
   if (prod) {
@@ -68,19 +80,17 @@ function agregarProductoRemito() {
   const cantidad = parseInt(document.getElementById("cantidad").value);
   const errorDiv = document.getElementById("errorId");
 
+  errorDiv.textContent = "";
+
   const prod = productos.find(p => p.id === id);
   if (!prod) {
     errorDiv.textContent = "Producto no encontrado. Por favor ingresa un ID correcto.";
     return;
-  } else {
-    errorDiv.textContent = "";
   }
 
   if (cantidad < 1 || isNaN(cantidad)) {
     errorDiv.textContent = "Cantidad inválida.";
     return;
-  } else {
-    errorDiv.textContent = "";
   }
 
   const existente = productosRemito.find(p => p.id === id);
@@ -90,8 +100,10 @@ function agregarProductoRemito() {
     productosRemito.push({ ...prod, cantidad });
   }
 
+  // Limpiar inputs y error
   document.getElementById("buscarId").value = "";
   document.getElementById("cantidad").value = "1";
+  errorDiv.textContent = "";
   document.getElementById("buscarId").focus();
 
   actualizarTablaRemito();
@@ -133,10 +145,14 @@ function eliminarProductoRemito(index) {
 // Generar remito
 async function generarRemito() {
   const cliente = document.getElementById("cliente").value.trim();
+  const errorCliente = document.getElementById("errorCliente");
   const mensajeDiv = document.getElementById("mensaje");
 
+  errorCliente.textContent = "";
+  mensajeDiv.innerHTML = "";
+
   if (!cliente) {
-    mensajeDiv.innerHTML = `<div class="alert alert-danger">Por favor ingrese el nombre del cliente.</div>`;
+    errorCliente.textContent = "Por favor ingrese el nombre del cliente.";
     return;
   }
   if (productosRemito.length === 0) {
@@ -147,41 +163,16 @@ async function generarRemito() {
   mensajeDiv.innerHTML = `<div class="alert alert-info">Generando remito...</div>`;
 
   try {
-    // Guardar cliente si no existe
-    await window.electronAPI.saveCliente({ nombre: cliente });
+    await window.electronAPI.saveCliente(cliente);
+    await window.electronAPI.guardarRemito(cliente, productosRemito);
 
-    const fecha = new Date().toISOString().split("T")[0];
-    const remito = {
-      cliente,
-      fecha,
-      productos: productosRemito.map(p => ({
-        nombre: p.nombre,
-        cantidad: p.cantidad,
-        precio: p.precio
-      }))
-    };
+    mensajeDiv.innerHTML = `<div class="alert alert-success">Remito generado exitosamente.</div>`;
 
-    const filePath = await window.electronAPI.exportarRemito(remito);
-    const nombreArchivo = filePath.split(/[\\/]/).pop();
-    
-    mensajeDiv.innerHTML = `
-      <div class="alert alert-success">
-        Remito guardado como <strong>${nombreArchivo}</strong>
-        <div class="mt-2">
-          <button class="btn btn-sm btn-outline-secondary" onclick="window.open('file://${filePath.replace(/\\/g, '/')}')">
-            Abrir archivo
-          </button>
-        </div>
-      </div>
-    `;
-
-    // Limpiar después de guardar
+    // Limpiar formulario
     productosRemito = [];
     actualizarTablaRemito();
     document.getElementById("cliente").value = "";
-
-  } catch (error) {
-    mensajeDiv.innerHTML = `<div class="alert alert-danger">Error al generar el archivo: ${error.message}</div>`;
-    console.error(error);
+  } catch (err) {
+    mensajeDiv.innerHTML = `<div class="alert alert-danger">Error al generar el remito.</div>`;
   }
 }

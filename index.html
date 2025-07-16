@@ -62,6 +62,7 @@
                 <div class="col-md-4">
                   <label for="prodId" class="form-label">ID del producto</label>
                   <input id="prodId" class="form-control" placeholder="Ej: 1001" />
+                  <div id="errorAgregarProducto" class="text-danger small mt-1" style="min-height: 1.25em;"></div>
                 </div>
                 <div class="col-md-4">
                   <label for="prodNombre" class="form-label">Nombre</label>
@@ -99,6 +100,7 @@
                 <div class="col-md-6">
                   <label for="cliente" class="form-label">Cliente</label>
                   <input id="cliente" class="form-control" placeholder="Nombre del cliente" />
+                  <div id="errorCliente" class="text-danger small mt-1" style="min-height: 1.25em;"></div>
                 </div>
               </div>
             </div>
@@ -110,7 +112,7 @@
             </div>
             <div class="card-body">
               <div class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-6 position-relative">
                   <label for="buscarId" class="form-label">ID del Producto</label>
                   <input id="buscarId" class="form-control" placeholder="ID producto" autocomplete="off" />
                   <div id="errorId" class="text-danger small mt-1" style="min-height: 1.25em;"></div>
