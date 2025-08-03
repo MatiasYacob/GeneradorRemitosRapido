@@ -78,6 +78,7 @@ function agregarAlRemito(id) {
 function agregarProductoRemito() {
   const id = document.getElementById("buscarId").value.trim();
   const cantidad = parseInt(document.getElementById("cantidad").value);
+  const descuento = parseFloat(document.getElementById("descuentoProducto").value) || 0;
   const errorDiv = document.getElementById("errorId");
 
   errorDiv.textContent = "";
@@ -93,16 +94,23 @@ function agregarProductoRemito() {
     return;
   }
 
+  if (descuento < 0 || descuento > 100) {
+    errorDiv.textContent = "Descuento inválido (0-100%).";
+    return;
+  }
+
   const existente = productosRemito.find(p => p.id === id);
   if (existente) {
     existente.cantidad += cantidad;
+    existente.descuento = descuento; // actualizar descuento
   } else {
-    productosRemito.push({ ...prod, cantidad });
+    productosRemito.push({ ...prod, cantidad, descuento });
   }
 
   // Limpiar inputs y error
   document.getElementById("buscarId").value = "";
   document.getElementById("cantidad").value = "1";
+  document.getElementById("descuentoProducto").value = "0";
   errorDiv.textContent = "";
   document.getElementById("buscarId").focus();
 
@@ -120,7 +128,11 @@ function actualizarTablaRemito() {
   let total = 0;
 
   productosRemito.forEach((prod, index) => {
-    const subtotal = prod.precio * prod.cantidad;
+    const descuento = prod.descuento || 0;
+    const subtotalSinDescuento = prod.precio * prod.cantidad;
+    const descuentoMonto = subtotalSinDescuento * (descuento / 100);
+    const subtotal = subtotalSinDescuento - descuentoMonto;
+
     total += subtotal;
 
     const tr = document.createElement("tr");
@@ -128,13 +140,21 @@ function actualizarTablaRemito() {
       <td>${prod.nombre}</td>
       <td>${prod.cantidad}</td>
       <td>$${prod.precio.toFixed(2)}</td>
+      <td>${descuento.toFixed(2)}%</td>
       <td>$${subtotal.toFixed(2)}</td>
       <td><button class="btn btn-sm btn-danger" onclick="eliminarProductoRemito(${index})">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
   });
 
-  document.getElementById("totalRemito").textContent = `$${total.toFixed(2)}`;
+  // Aplicar descuento general
+  const descuentoGeneral = parseFloat(document.getElementById("descuentoGeneral").value) || 0;
+  let totalFinal = total;
+  if (descuentoGeneral > 0 && descuentoGeneral <= 100) {
+    totalFinal = total * (1 - descuentoGeneral / 100);
+  }
+
+  document.getElementById("totalRemito").textContent = `$${totalFinal.toFixed(2)}`;
 }
 
 function eliminarProductoRemito(index) {
@@ -145,6 +165,10 @@ function eliminarProductoRemito(index) {
 // Generar remito
 async function generarRemito() {
   const cliente = document.getElementById("cliente").value.trim();
+  const direccion = document.getElementById("direccion").value.trim();
+  const telefono = document.getElementById("telefono").value.trim();
+  const saldo = parseFloat(document.getElementById("saldo").value) || 0;
+  const descuentoGeneral = parseFloat(document.getElementById("descuentoGeneral").value) || 0;
   const errorCliente = document.getElementById("errorCliente");
   const mensajeDiv = document.getElementById("mensaje");
 
@@ -159,20 +183,52 @@ async function generarRemito() {
     mensajeDiv.innerHTML = `<div class="alert alert-danger">No hay productos en el remito.</div>`;
     return;
   }
+  if (descuentoGeneral < 0 || descuentoGeneral > 100) {
+    mensajeDiv.innerHTML = `<div class="alert alert-danger">Descuento general inválido (0-100%).</div>`;
+    return;
+  }
 
   mensajeDiv.innerHTML = `<div class="alert alert-info">Generando remito...</div>`;
 
   try {
-    await window.electronAPI.saveCliente(cliente);
-    await window.electronAPI.guardarRemito(cliente, productosRemito);
+    // Estructura de datos completa y bien organizada
+    const datosRemito = {
+      cliente: {
+        nombre: cliente,
+        direccion: direccion,
+        telefono: telefono,
+        saldo: saldo
+      },
+      descuentoGeneral: descuentoGeneral,
+      productos: productosRemito,
+      fecha: new Date().toISOString().split('T')[0]
+    };
 
-    mensajeDiv.innerHTML = `<div class="alert alert-success">Remito generado exitosamente.</div>`;
+    await window.electronAPI.exportarRemito(datosRemito);
+
+    mensajeDiv.innerHTML = `
+      <div class="alert alert-success">
+        Remito generado exitosamente.<br>
+        Cliente: ${cliente}<br>
+        Total: $${document.getElementById("totalRemito").textContent}
+      </div>
+    `;
 
     // Limpiar formulario
     productosRemito = [];
     actualizarTablaRemito();
     document.getElementById("cliente").value = "";
+    document.getElementById("direccion").value = "";
+    document.getElementById("telefono").value = "";
+    document.getElementById("saldo").value = "";
+    document.getElementById("descuentoGeneral").value = "0";
   } catch (err) {
-    mensajeDiv.innerHTML = `<div class="alert alert-danger">Error al generar el remito.</div>`;
+    console.error("Error al generar remito:", err);
+    mensajeDiv.innerHTML = `
+      <div class="alert alert-danger">
+        Error al generar el remito:<br>
+        ${err.message || "Verifique la consola para más detalles"}
+      </div>
+    `;
   }
 }

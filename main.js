@@ -3,38 +3,33 @@ const path = require('path');
 const fs = require('fs');
 const ExcelJS = require('exceljs');
 
-// Configuración de paths
+// Paths
 const dataFile = path.join(__dirname, 'data.json');
 const remitoCounterFile = path.join(__dirname, 'remitoCounter.json');
-const remitosFolder = path.join(__dirname, 'remitos'); // Carpeta en la raíz
+const remitosFolder = path.join(__dirname, 'remitos');
 
-// Verificar y crear carpeta remitos si no existe
 if (!fs.existsSync(remitosFolder)) {
   fs.mkdirSync(remitosFolder, { recursive: true });
 }
 
-// Verificar permisos de escritura
 try {
   fs.accessSync(remitosFolder, fs.constants.W_OK);
 } catch (err) {
-  console.error('Error: No hay permisos para escribir en la carpeta remitos:', err);
+  console.error('No hay permisos para escribir en la carpeta remitos:', err);
   app.quit();
 }
 
-// Datos iniciales
 let appData = {
   clientes: [],
   productos: [],
   remitos: []
 };
 
-// Contador de remitos
 let remitoCounter = {
   count: 1,
   lastDate: new Date().toISOString().split('T')[0]
 };
 
-// Cargar datos existentes
 if (fs.existsSync(dataFile)) {
   try {
     appData = JSON.parse(fs.readFileSync(dataFile));
@@ -51,7 +46,6 @@ if (fs.existsSync(remitoCounterFile)) {
   }
 }
 
-// Función para guardar datos
 function saveData() {
   try {
     fs.writeFileSync(dataFile, JSON.stringify(appData, null, 2));
@@ -61,165 +55,282 @@ function saveData() {
   }
 }
 
-// Generador de números de remito
 function getNextRemitoNumber() {
   const today = new Date().toISOString().split('T')[0];
-  
   if (remitoCounter.lastDate !== today) {
     remitoCounter.count = 1;
     remitoCounter.lastDate = today;
   }
-  
   const paddedNumber = remitoCounter.count.toString().padStart(4, '0');
   remitoCounter.count++;
-  
   return `REM-${today.replace(/-/g, '')}-${paddedNumber}`;
 }
 
-// Función para generar el Excel del remito
 async function generateRemitoExcel(remito) {
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Remito');
-  const remitoNumber = getNextRemitoNumber();
-  const today = new Date().toISOString().split('T')[0];
+  // Normalización de datos del cliente
+  const cliente = {
+    nombre: remito.cliente?.nombre || remito.cliente || 'Cliente no especificado',
+    direccion: remito.cliente?.direccion || 'No especificada',
+    telefono: remito.cliente?.telefono || 'No especificado',
+    saldo: parseFloat(remito.cliente?.saldo) || 0
+  };
 
-  // =================== ESTILOS ===================
-  const borderStyle = {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Remito');
+
+  // Definición de estilos completos con bordes
+  const baseStyle = {
     border: {
       top: { style: 'thin', color: { argb: 'FF000000' } },
       left: { style: 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'thin', color: { argb: 'FF000000' } },
       right: { style: 'thin', color: { argb: 'FF000000' } }
     },
-    alignment: { vertical: 'middle' }
+    alignment: { vertical: 'middle', wrapText: true }
   };
 
-  const headerStyle = {
-    font: { bold: true, size: 12 },
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } },
-    ...borderStyle
+  const styles = {
+    header: {
+      ...baseStyle,
+      font: { bold: true, size: 12, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } },
+      alignment: { ...baseStyle.alignment, horizontal: 'center' }
+    },
+    title: {
+      ...baseStyle,
+      font: { bold: true, size: 16 },
+      alignment: { ...baseStyle.alignment, horizontal: 'center' }
+    },
+    warning: {
+      ...baseStyle,
+      font: { bold: true, color: { argb: 'FFFF0000' } },
+      alignment: { ...baseStyle.alignment, horizontal: 'center' }
+    },
+    label: {
+      ...baseStyle,
+      font: { bold: true },
+      alignment: { ...baseStyle.alignment, horizontal: 'left' }
+    },
+    data: {
+      ...baseStyle,
+      alignment: { ...baseStyle.alignment, horizontal: 'right' }
+    },
+    centerData: {
+      ...baseStyle,
+      alignment: { ...baseStyle.alignment, horizontal: 'center' }
+    },
+    total: {
+      ...baseStyle,
+      font: { bold: true, size: 14 },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
+    },
+    saldo: {
+      ...baseStyle,
+      font: { bold: true, size: 14, color: { argb: 'FFC00000' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } }
+    }
   };
 
-  const titleStyle = {
-    font: { bold: true, size: 16 },
-    alignment: { horizontal: 'center' },
-    ...borderStyle
+  // Configuración de columnas
+  worksheet.columns = [
+    { width: 20 }, // Producto
+    { width: 12 }, // Cantidad
+    { width: 16 }, // Precio Unitario
+    { width: 14 }, // Descuento %
+    { width: 16 }  // Subtotal
+  ];
+
+  // Aplicar bordes a todas las celdas vacías
+  const applyBordersToEmptyCells = (startRow, endRow) => {
+    for (let row = startRow; row <= endRow; row++) {
+      for (let col = 1; col <= 5; col++) {
+        const cell = worksheet.getRow(row).getCell(col);
+        if (!cell.value) {
+          cell.style = baseStyle;
+        }
+      }
+    }
   };
 
-  // =================== CABECERA ===================
-  // Nombre de la empresa
-  sheet.mergeCells('A1:D1');
-  const companyRow = sheet.getRow(1);
-  companyRow.height = 30;
-  companyRow.getCell(1).value = 'DISTRIBUIDORA DEL SOL';
-  companyRow.getCell(1).style = titleStyle;
+  // Encabezados
+  const remitoNumber = getNextRemitoNumber();
+  const today = new Date().toISOString().split('T')[0];
 
-  // Tipo de documento
-  sheet.mergeCells('A2:D2');
-  const docTypeRow = sheet.getRow(2);
-  docTypeRow.height = 25;
-  docTypeRow.getCell(1).value = 'REMITO';
-  docTypeRow.getCell(1).style = titleStyle;
+  // Título y número de remito (Fila 1-3)
+  worksheet.mergeCells('A1:E1');
+  worksheet.getCell('A1').value = 'DISTRIBUIDORA DEL SOL';
+  worksheet.getCell('A1').style = styles.title;
 
-  // Datos del remito
-  sheet.mergeCells('A3:B3');
-  const remitoNumRow = sheet.getRow(3);
-  remitoNumRow.getCell(1).value = 'Nro de Remito:';
-  remitoNumRow.getCell(1).style = { ...borderStyle, font: { bold: true } };
-  remitoNumRow.getCell(3).value = remitoNumber;
-  remitoNumRow.getCell(3).style = borderStyle;
-  sheet.mergeCells('C3:D3');
+  worksheet.mergeCells('A2:E2');
+  worksheet.getCell('A2').value = 'REMITO';
+  worksheet.getCell('A2').style = { ...styles.title, font: { ...styles.title.font, size: 18 } };
 
-  sheet.mergeCells('A4:B4');
-  const dateRow = sheet.getRow(4);
-  dateRow.getCell(1).value = 'Fecha:';
-  dateRow.getCell(1).style = { ...borderStyle, font: { bold: true } };
-  dateRow.getCell(3).value = today;
-  dateRow.getCell(3).style = borderStyle;
-  sheet.mergeCells('C4:D4');
+  worksheet.mergeCells('A3:E3');
+  worksheet.getCell('A3').value = 'NO VÁLIDO COMO FACTURA';
+  worksheet.getCell('A3').style = styles.warning;
 
-  sheet.mergeCells('A5:D5');
-  const clientRow = sheet.getRow(5);
-  clientRow.height = 25;
-  clientRow.getCell(1).value = 'Cliente: ' + remito.cliente;
-  clientRow.getCell(1).style = { ...borderStyle, font: { bold: true } };
+  // Información del cliente (Fila 4-8)
+  // Fila 4: Número de remito
+  worksheet.mergeCells('A4:B4');
+  worksheet.getCell('A4').value = 'Número de Remito:';
+  worksheet.getCell('A4').style = styles.label;
+  worksheet.mergeCells('C4:E4');
+  worksheet.getCell('C4').value = remitoNumber;
+  worksheet.getCell('C4').style = styles.data;
 
-  // Espacio antes de la tabla
-  sheet.getRow(6).height = 10;
+  // Fila 5: Fecha
+  worksheet.mergeCells('A5:B5');
+  worksheet.getCell('A5').value = 'Fecha:';
+  worksheet.getCell('A5').style = styles.label;
+  worksheet.mergeCells('C5:E5');
+  worksheet.getCell('C5').value = today;
+  worksheet.getCell('C5').style = styles.data;
 
-  // =================== TABLA DE PRODUCTOS ===================
-  // Encabezados de la tabla
-  const headers = ['Producto', 'Cantidad', 'Precio Unitario', 'Total'];
-  const headerRow = sheet.getRow(7);
-  headerRow.height = 25;
-  
-  headers.forEach((header, index) => {
-    headerRow.getCell(index + 1).value = header;
-    headerRow.getCell(index + 1).style = headerStyle;
-    sheet.getColumn(index + 1).width = [25, 15, 18, 18][index];
+  // Fila 6: Cliente
+  worksheet.mergeCells('A6:B6');
+  worksheet.getCell('A6').value = 'Cliente:';
+  worksheet.getCell('A6').style = styles.label;
+  worksheet.mergeCells('C6:E6');
+  worksheet.getCell('C6').value = cliente.nombre;
+  worksheet.getCell('C6').style = styles.data;
+
+  // Fila 7: Dirección
+  worksheet.mergeCells('A7:B7');
+  worksheet.getCell('A7').value = 'Dirección:';
+  worksheet.getCell('A7').style = styles.label;
+  worksheet.mergeCells('C7:E7');
+  worksheet.getCell('C7').value = cliente.direccion;
+  worksheet.getCell('C7').style = styles.data;
+
+  // Fila 8: Teléfono
+  worksheet.mergeCells('A8:B8');
+  worksheet.getCell('A8').value = 'Teléfono:';
+  worksheet.getCell('A8').style = styles.label;
+  worksheet.mergeCells('C8:E8');
+  worksheet.getCell('C8').value = cliente.telefono;
+  worksheet.getCell('C8').style = styles.data;
+
+  // Aplicar bordes a celdas vacías en las filas 1-8
+  applyBordersToEmptyCells(1, 8);
+
+  // Espaciador (Fila 9)
+  worksheet.getRow(9).height = 10;
+  applyBordersToEmptyCells(9, 9);
+
+  // Encabezados de productos (Fila 10)
+  const headers = ['Producto', 'Cantidad', 'Precio Unitario', 'Descuento %', 'Subtotal'];
+  const headerRow = worksheet.getRow(10);
+  headerRow.values = headers;
+  headerRow.eachCell((cell) => {
+    cell.style = styles.header;
   });
 
-  // Productos
-  let currentRow = 8;
-  remito.productos.forEach((producto) => {
-    const row = sheet.getRow(currentRow);
-    const total = producto.precio * producto.cantidad;
-    
-    row.getCell(1).value = producto.nombre;
-    row.getCell(2).value = producto.cantidad;
-    row.getCell(3).value = producto.precio;
-    row.getCell(4).value = total;
-    
-    // Aplicar estilos
-    row.eachCell({ includeEmpty: true }, (cell) => {
-      cell.style = borderStyle;
+  // Detalle de productos (desde Fila 11)
+  let currentRow = 11;
+  let total = 0;
+
+  remito.productos.forEach((prod) => {
+    const row = worksheet.getRow(currentRow);
+    const cantidad = prod.cantidad || 1;
+    const precio = prod.precio || 0;
+    const descuento = prod.descuento || 0;
+    const subtotalSinDescuento = precio * cantidad;
+    const descuentoMonto = subtotalSinDescuento * (descuento / 100);
+    const subtotal = subtotalSinDescuento - descuentoMonto;
+
+    total += subtotal;
+
+    row.values = [
+      prod.nombre,
+      cantidad,
+      `$${precio.toFixed(2)}`,
+      `${descuento.toFixed(2)}%`,
+      `$${subtotal.toFixed(2)}`
+    ];
+
+    row.eachCell((cell, colNumber) => {
+      cell.style = {
+        ...styles.data,
+        alignment: { 
+          ...styles.data.alignment,
+          horizontal: colNumber === 2 ? 'center' : 'right' 
+        }
+      };
     });
-    
-    // Formato numérico
-    row.getCell(3).style = { ...borderStyle, numFmt: '"$"#,##0.00' };
-    row.getCell(4).style = { ...borderStyle, numFmt: '"$"#,##0.00', font: { bold: true } };
-    
+
     currentRow++;
   });
 
-  // =================== TOTAL ===================
-  const total = remito.productos.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
-  const totalRow = sheet.getRow(currentRow);
-  totalRow.height = 25;
-  
-  sheet.mergeCells(`A${currentRow}:C${currentRow}`);
-  totalRow.getCell(1).value = 'TOTAL';
-  totalRow.getCell(1).style = { ...borderStyle, font: { bold: true }, alignment: { horizontal: 'right' } };
-  
-  totalRow.getCell(4).value = total;
-  totalRow.getCell(4).style = { ...borderStyle, numFmt: '"$"#,##0.00', font: { bold: true } };
+  // Total (Fila siguiente)
+  const totalRow = worksheet.getRow(currentRow);
+  worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+  totalRow.getCell('A').value = 'TOTAL:';
+  totalRow.getCell('A').style = { ...styles.total, alignment: { horizontal: 'right' } };
+  totalRow.getCell('E').value = `$${total.toFixed(2)}`;
+  totalRow.getCell('E').style = styles.total;
+  applyBordersToEmptyCells(currentRow, currentRow);
+  currentRow++;
 
-  // =================== GUARDAR ARCHIVO ===================
-  const fileName = `${remitoNumber}_${remito.cliente.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
+  // Saldo del cliente (si es diferente de cero)
+  if (cliente.saldo !== 0) {
+    const saldoRow = worksheet.getRow(currentRow);
+    worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+    saldoRow.getCell('A').value = 'SALDO DEL CLIENTE:';
+    saldoRow.getCell('A').style = { ...styles.saldo, alignment: { horizontal: 'right' } };
+    saldoRow.getCell('E').value = `$${cliente.saldo.toFixed(2)}`;
+    saldoRow.getCell('E').style = styles.saldo;
+    applyBordersToEmptyCells(currentRow, currentRow);
+    currentRow++;
+  }
+
+  // Asegurar bordes en todas las celdas utilizadas
+  for (let row = 1; row < currentRow; row++) {
+    const worksheetRow = worksheet.getRow(row);
+    for (let col = 1; col <= 5; col++) {
+      const cell = worksheetRow.getCell(col);
+      if (!cell.style || !cell.style.border) {
+        cell.style = baseStyle;
+      }
+    }
+  }
+
+  // Guardar archivo
+  const safeCliente = cliente.nombre.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+  const fileName = `${remitoNumber}_${safeCliente}.xlsx`;
   const filePath = path.join(remitosFolder, fileName);
-  
+
   try {
     await workbook.xlsx.writeFile(filePath);
-    
-    // Guardar remito en historial
+
+    // Registrar en el historial
     appData.remitos.push({
       ...remito,
       numero: remitoNumber,
       archivo: fileName,
       rutaCompleta: filePath,
       fechaGeneracion: new Date().toISOString(),
-      total: total
+      total,
+      cliente
     });
     saveData();
 
     return filePath;
   } catch (error) {
     console.error('Error al guardar el archivo Excel:', error);
-    throw error;
+    throw new Error(`No se pudo guardar el archivo: ${error.message}`);
   }
 }
 
-// =================== ELECTRON APP ===================
+
+
+
+
+
+
+
+
+
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1000,
@@ -246,10 +357,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// =================== MANEJO DE DATOS ===================
-ipcMain.handle('get-data', () => {
-  return appData;
-});
+// IPC handlers
+
+ipcMain.handle('get-data', () => appData);
 
 ipcMain.handle('save-productos', (event, productos) => {
   appData.productos = productos;
@@ -257,6 +367,7 @@ ipcMain.handle('save-productos', (event, productos) => {
 });
 
 ipcMain.handle('save-cliente', (event, cliente) => {
+  // Agregar cliente solo si no existe (por nombre)
   if (!appData.clientes.some(c => c.nombre === cliente.nombre)) {
     appData.clientes.push(cliente);
     saveData();
@@ -272,16 +383,15 @@ ipcMain.handle('exportar-remito', async (event, remito) => {
   }
 });
 
-// Nueva función para listar remitos existentes
 ipcMain.handle('listar-remitos', () => {
   try {
     const files = fs.readdirSync(remitosFolder)
-                  .filter(file => file.endsWith('.xlsx'))
-                  .map(file => ({
-                    nombre: file,
-                    ruta: path.join(remitosFolder, file),
-                    fecha: fs.statSync(path.join(remitosFolder, file)).mtime
-                  }));
+      .filter(file => file.endsWith('.xlsx'))
+      .map(file => ({
+        nombre: file,
+        ruta: path.join(remitosFolder, file),
+        fecha: fs.statSync(path.join(remitosFolder, file)).mtime
+      }));
     return { success: true, files };
   } catch (error) {
     return { success: false, error: error.message };
