@@ -1,6 +1,6 @@
 let productos = [];
 let productosRemito = [];
-let editModeID = null;
+let editModeId = null;
 
 
 // Cargar datos al iniciar
@@ -23,56 +23,56 @@ function mostrarVista(vistaId) {
   document.getElementById(vistaId).classList.remove("d-none");
 }
 
-// Agregar producto a la lista
+// renderer.js  (sustituir función completa)
 async function agregarProducto() {
   const idRaw = document.getElementById("prodId").value;
-  const id = idRaw.trim().toUpperCase();
-  const nombre = document.getElementById("prodNombre").value.trim();
-  const precio = Number(document.getElementById("prodPrecio").value);
-  const errorDiv = document.getElementById("errorAgregarProducto");
+  const id = (idRaw || "").trim().toUpperCase();
 
+  const nombre = (document.getElementById("prodNombre").value || "").trim();
+
+  // soportar coma decimal: "100,50" -> "100.50"
+  const precioStr = (document.getElementById("prodPrecio").value || "").trim().replace(",", ".");
+  const precio = Number(precioStr);
+
+  const errorDiv = document.getElementById("errorAgregarProducto");
   errorDiv.textContent = "";
 
-  // Validaciones
+  // validaciones
   if (!id || !nombre || !Number.isFinite(precio) || precio <= 0) {
-    errorDiv.textContent = "Completa todos los campos; el precio debe ser > 0.";
+    errorDiv.textContent = "Completa todos los campos; el precio debe ser > 0 (usa punto o coma).";
     return;
   }
 
-  // Modo edición
+  // MODO EDICIÓN
   if (editModeId !== null) {
-    // Si cambió el ID, chequear duplicados
     if (id !== editModeId && productos.some(p => p.id === id)) {
       errorDiv.textContent = "Ya existe un producto con ese ID.";
       return;
     }
-    // Actualizar
     const idx = productos.findIndex(p => p.id === editModeId);
-    if (idx >= 0) {
-      productos[idx] = { id, nombre, precio };
-    }
-    await window.electronAPI.saveProductos(productos); // Persistir:contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
+    if (idx >= 0) productos[idx] = { id, nombre, precio };
+    await window.electronAPI.saveProductos(productos); // persiste en data.json :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
     actualizarListaProductos();
-    cancelarEdicion(); // limpia y sale de modo edición
+    cancelarEdicion?.();
     return;
   }
 
-  // Modo alta
+  // MODO ALTA
   if (productos.some(p => p.id === id)) {
     errorDiv.textContent = "Ya existe un producto con este ID.";
     return;
   }
 
   productos.push({ id, nombre, precio });
-  await window.electronAPI.saveProductos(productos); // Persistir:contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
+  await window.electronAPI.saveProductos(productos);   // persiste en data.json :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
   actualizarListaProductos();
 
-  // Limpiar formulario
+  // limpiar
   document.getElementById("prodId").value = "";
   document.getElementById("prodNombre").value = "";
   document.getElementById("prodPrecio").value = "";
-  errorDiv.textContent = "";
 }
+
 
 
 function actualizarListaProductos() {
@@ -85,13 +85,26 @@ function actualizarListaProductos() {
     li.innerHTML = `
       <span>${prod.id} - ${prod.nombre} ($${prod.precio.toFixed(2)})</span>
       <div class="btn-group">
-        <button class="btn btn-sm btn-secondary" onclick="editarProducto('${prod.id}')">Editar</button>
-        <button class="btn btn-sm btn-primary" onclick="agregarAlRemito('${prod.id}')">Agregar</button>
+        <button class="btn btn-sm btn-warning" onclick="editarProducto('${prod.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="eliminarProducto('${prod.id}')">Eliminar</button>
       </div>
     `;
     ul.appendChild(li);
   });
 }
+
+
+// renderer.js  :contentReference[oaicite:2]{index=2}
+window.eliminarProducto = async (id) => {
+  const ok = await window.electronAPI.confirmDelete("¿Seguro que quieres eliminar este producto?");
+  if (!ok) return;
+
+  productos = productos.filter(p => p.id !== id);
+  await window.electronAPI.saveProductos(productos);
+  actualizarListaProductos();
+};
+
+
 
 window.editarProducto = (id) => {
   const p = productos.find(x => x.id === id);

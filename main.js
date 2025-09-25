@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain,dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const ExcelJS = require('exceljs');
@@ -54,6 +54,7 @@ function saveData() {
     console.error('Error al guardar datos:', err);
   }
 }
+
 
 function getNextRemitoNumber() {
   const today = new Date().toISOString().split('T')[0];
@@ -358,6 +359,21 @@ app.on('window-all-closed', () => {
 });
 
 // IPC handlers
+
+
+ipcMain.handle('confirm-delete', async (event, message) => {
+  const result = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['Cancelar', 'Eliminar'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Confirmar eliminación',
+    message,
+    noLink: true
+  });
+  return result.response === 1; // true si eligió "Eliminar"
+});
+
 
 ipcMain.handle('get-data', () => appData);
 
