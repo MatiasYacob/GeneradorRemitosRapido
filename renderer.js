@@ -27,6 +27,36 @@ function mostrarVista(vistaId) {
   document.getElementById(vistaId).classList.remove("d-none");
 }
 
+
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast align-items-center text-bg-${type} border-0 mb-2`;
+  toast.role = "alert";
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  `;
+
+  container.appendChild(toast);
+
+  // Inicializar con Bootstrap
+  const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+  bsToast.show();
+
+  // Remover del DOM al cerrarse
+  toast.addEventListener("hidden.bs.toast", () => toast.remove());
+}
+
+
+
+
+
+
 // renderer.js  (sustituir función completa)
 async function agregarProducto() {
   const idRaw = document.getElementById("prodId").value;
@@ -70,6 +100,7 @@ async function agregarProducto() {
   productos.push({ id, nombre, precio });
   await window.electronAPI.saveProductos(productos);   // persiste en data.json :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
   actualizarListaProductos();
+  showToast("Producto agregado con éxito", "success");
 
   // limpiar
   document.getElementById("prodId").value = "";
