@@ -9,6 +9,10 @@ window.electronAPI.getData().then(data => {
   actualizarListaProductos();
 });
 
+
+
+
+
 function mostrarVista(vistaId) {
   // Actualizar tabs activos
   document.querySelectorAll('.nav-link').forEach(btn => {
@@ -75,23 +79,55 @@ async function agregarProducto() {
 
 
 
-function actualizarListaProductos() {
-  const ul = document.getElementById("listaProductos");
-  ul.innerHTML = "";
-  
-  productos.forEach(prod => {
-    const li = document.createElement("li");
-    li.className = "list-group-item d-flex justify-content-between align-items-center";
-    li.innerHTML = `
-      <span>${prod.id} - ${prod.nombre} ($${prod.precio.toFixed(2)})</span>
-      <div class="btn-group">
-        <button class="btn btn-sm btn-warning" onclick="editarProducto('${prod.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="eliminarProducto('${prod.id}')">Eliminar</button>
-      </div>
-    `;
-    ul.appendChild(li);
-  });
+
+
+// helper para conservar el filtro actual
+function getFiltroActual() {
+  const i = document.getElementById("buscarProd");
+  return i ? (i.value || "").toLowerCase() : "";
 }
+
+// NUEVA versión con filtro
+function actualizarListaProductos(filtro = getFiltroActual()) {
+  const ul = document.getElementById("listaProductos");
+  if (!ul) return;
+  ul.innerHTML = "";
+
+  const f = (filtro || "").toLowerCase();
+
+  productos
+    .filter(p =>
+      !f ||
+      p.id.toLowerCase().includes(f) ||
+      p.nombre.toLowerCase().includes(f)
+    )
+    .forEach(prod => {
+      const li = document.createElement("li");
+      li.className = "list-group-item d-flex justify-content-between align-items-center";
+      li.innerHTML = `
+        <span>${prod.id} - ${prod.nombre} ($${prod.precio.toFixed(2)})</span>
+        <div class="btn-group">
+          <button class="btn btn-sm btn-warning" onclick="editarProducto('${prod.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="eliminarProducto('${prod.id}')">Eliminar</button>
+        </div>
+      `;
+      ul.appendChild(li);
+    });
+}
+
+// enganchar input (si existe) y refrescar al tipear
+(function wireBuscarProductos(){
+  const input = document.getElementById("buscarProd");
+  if (input) {
+    input.addEventListener("input", e => {
+      actualizarListaProductos(e.target.value);
+    });
+  } else {
+    // si aún no está en el DOM (orden de carga), reintentar al próximo tick
+    setTimeout(wireBuscarProductos, 0);
+  }
+})();
+
 
 
 // renderer.js  :contentReference[oaicite:2]{index=2}
