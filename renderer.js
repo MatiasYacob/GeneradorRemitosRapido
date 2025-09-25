@@ -61,19 +61,17 @@ function showToast(message, type = "info") {
 async function agregarProducto() {
   const idRaw = document.getElementById("prodId").value;
   const id = (idRaw || "").trim().toUpperCase();
-
   const nombre = (document.getElementById("prodNombre").value || "").trim();
-
-  // soportar coma decimal: "100,50" -> "100.50"
   const precioStr = (document.getElementById("prodPrecio").value || "").trim().replace(",", ".");
   const precio = Number(precioStr);
 
   const errorDiv = document.getElementById("errorAgregarProducto");
   errorDiv.textContent = "";
 
-  // validaciones
+  // Validaciones
   if (!id || !nombre || !Number.isFinite(precio) || precio <= 0) {
     errorDiv.textContent = "Completa todos los campos; el precio debe ser > 0 (usa punto o coma).";
+    showToast("Completa todos los campos; precio > 0", "danger");
     return;
   }
 
@@ -81,32 +79,38 @@ async function agregarProducto() {
   if (editModeId !== null) {
     if (id !== editModeId && productos.some(p => p.id === id)) {
       errorDiv.textContent = "Ya existe un producto con ese ID.";
+      showToast("Ya existe un producto con ese ID", "danger");
       return;
     }
     const idx = productos.findIndex(p => p.id === editModeId);
     if (idx >= 0) productos[idx] = { id, nombre, precio };
-    await window.electronAPI.saveProductos(productos); // persiste en data.json :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
+
+    await window.electronAPI.saveProductos(productos);
     actualizarListaProductos();
-    cancelarEdicion?.();
+    cancelarEdicion();
+    showToast("Producto actualizado ✏️", "info");
     return;
   }
 
   // MODO ALTA
   if (productos.some(p => p.id === id)) {
     errorDiv.textContent = "Ya existe un producto con este ID.";
+    showToast("Ya existe un producto con este ID", "danger");
     return;
   }
 
   productos.push({ id, nombre, precio });
-  await window.electronAPI.saveProductos(productos);   // persiste en data.json :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
+  await window.electronAPI.saveProductos(productos);
   actualizarListaProductos();
-  showToast("Producto agregado con éxito", "success");
 
-  // limpiar
+  // Limpiar
   document.getElementById("prodId").value = "";
   document.getElementById("prodNombre").value = "";
   document.getElementById("prodPrecio").value = "";
+
+  showToast("Producto agregado con éxito ✅", "success");
 }
+
 
 
 
@@ -169,7 +173,9 @@ window.eliminarProducto = async (id) => {
   productos = productos.filter(p => p.id !== id);
   await window.electronAPI.saveProductos(productos);
   actualizarListaProductos();
+  showToast("Producto eliminado 🗑️", "warning");
 };
+
 
 
 
@@ -239,42 +245,42 @@ function agregarProductoRemito() {
   const cantidad = parseInt(document.getElementById("cantidad").value);
   const descuento = parseFloat(document.getElementById("descuentoProducto").value) || 0;
   const errorDiv = document.getElementById("errorId");
-
   errorDiv.textContent = "";
 
   const prod = productos.find(p => p.id === id);
   if (!prod) {
     errorDiv.textContent = "Producto no encontrado. Por favor ingresa un ID correcto.";
+    showToast("Ese producto no existe ❌", "danger");
     return;
   }
-
   if (cantidad < 1 || isNaN(cantidad)) {
     errorDiv.textContent = "Cantidad inválida.";
+    showToast("La cantidad debe ser mayor a 0", "danger");
     return;
   }
-
   if (descuento < 0 || descuento > 100) {
     errorDiv.textContent = "Descuento inválido (0-100%).";
+    showToast("Descuento inválido (0-100%)", "danger");
     return;
   }
 
   const existente = productosRemito.find(p => p.id === id);
   if (existente) {
     existente.cantidad += cantidad;
-    existente.descuento = descuento; // actualizar descuento
+    existente.descuento = descuento;
   } else {
     productosRemito.push({ ...prod, cantidad, descuento });
   }
 
-  // Limpiar inputs y error
   document.getElementById("buscarId").value = "";
   document.getElementById("cantidad").value = "1";
   document.getElementById("descuentoProducto").value = "0";
-  errorDiv.textContent = "";
   document.getElementById("buscarId").focus();
 
   actualizarTablaRemito();
+  showToast("Producto agregado al remito 🧾", "success");
 }
+
 
 document.getElementById("buscarId").addEventListener("input", () => {
   document.getElementById("errorId").textContent = "";
@@ -328,6 +334,7 @@ async function generarRemito() {
   const telefono = document.getElementById("telefono").value.trim();
   const saldo = parseFloat(document.getElementById("saldo").value) || 0;
   const descuentoGeneral = parseFloat(document.getElementById("descuentoGeneral").value) || 0;
+
   const errorCliente = document.getElementById("errorCliente");
   const mensajeDiv = document.getElementById("mensaje");
 
@@ -336,29 +343,27 @@ async function generarRemito() {
 
   if (!cliente) {
     errorCliente.textContent = "Por favor ingrese el nombre del cliente.";
+    showToast("Ingresa el nombre del cliente", "danger");
     return;
   }
   if (productosRemito.length === 0) {
     mensajeDiv.innerHTML = `<div class="alert alert-danger">No hay productos en el remito.</div>`;
+    showToast("No hay productos en el remito", "danger");
     return;
   }
   if (descuentoGeneral < 0 || descuentoGeneral > 100) {
     mensajeDiv.innerHTML = `<div class="alert alert-danger">Descuento general inválido (0-100%).</div>`;
+    showToast("Descuento general inválido (0-100%)", "danger");
     return;
   }
 
   mensajeDiv.innerHTML = `<div class="alert alert-info">Generando remito...</div>`;
+  showToast("Generando remito…", "info");
 
   try {
-    // Estructura de datos completa y bien organizada
     const datosRemito = {
-      cliente: {
-        nombre: cliente,
-        direccion: direccion,
-        telefono: telefono,
-        saldo: saldo
-      },
-      descuentoGeneral: descuentoGeneral,
+      cliente: { nombre: cliente, direccion, telefono, saldo },
+      descuentoGeneral,
       productos: productosRemito,
       fecha: new Date().toISOString().split('T')[0]
     };
@@ -373,7 +378,6 @@ async function generarRemito() {
       </div>
     `;
 
-    // Limpiar formulario
     productosRemito = [];
     actualizarTablaRemito();
     document.getElementById("cliente").value = "";
@@ -381,6 +385,8 @@ async function generarRemito() {
     document.getElementById("telefono").value = "";
     document.getElementById("saldo").value = "";
     document.getElementById("descuentoGeneral").value = "0";
+
+    showToast("Remito generado correctamente 📂", "success");
   } catch (err) {
     console.error("Error al generar remito:", err);
     mensajeDiv.innerHTML = `
@@ -389,5 +395,7 @@ async function generarRemito() {
         ${err.message || "Verifique la consola para más detalles"}
       </div>
     `;
+    showToast("Error al generar el remito", "danger");
   }
 }
+
