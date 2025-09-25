@@ -1,5 +1,7 @@
 let productos = [];
 let productosRemito = [];
+let editModeID = null;
+
 
 // Cargar datos al iniciar
 window.electronAPI.getData().then(data => {
@@ -23,33 +25,55 @@ function mostrarVista(vistaId) {
 
 // Agregar producto a la lista
 async function agregarProducto() {
-  const id = document.getElementById("prodId").value.trim();
+  const idRaw = document.getElementById("prodId").value;
+  const id = idRaw.trim().toUpperCase();
   const nombre = document.getElementById("prodNombre").value.trim();
-  const precio = parseFloat(document.getElementById("prodPrecio").value.trim());
+  const precio = Number(document.getElementById("prodPrecio").value);
   const errorDiv = document.getElementById("errorAgregarProducto");
 
   errorDiv.textContent = "";
 
-  if (!id || !nombre || isNaN(precio)) {
-    errorDiv.textContent = "Completa todos los campos del producto correctamente.";
+  // Validaciones
+  if (!id || !nombre || !Number.isFinite(precio) || precio <= 0) {
+    errorDiv.textContent = "Completa todos los campos; el precio debe ser > 0.";
     return;
   }
 
+  // Modo edición
+  if (editModeId !== null) {
+    // Si cambió el ID, chequear duplicados
+    if (id !== editModeId && productos.some(p => p.id === id)) {
+      errorDiv.textContent = "Ya existe un producto con ese ID.";
+      return;
+    }
+    // Actualizar
+    const idx = productos.findIndex(p => p.id === editModeId);
+    if (idx >= 0) {
+      productos[idx] = { id, nombre, precio };
+    }
+    await window.electronAPI.saveProductos(productos); // Persistir:contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
+    actualizarListaProductos();
+    cancelarEdicion(); // limpia y sale de modo edición
+    return;
+  }
+
+  // Modo alta
   if (productos.some(p => p.id === id)) {
     errorDiv.textContent = "Ya existe un producto con este ID.";
     return;
   }
 
   productos.push({ id, nombre, precio });
-  await window.electronAPI.saveProductos(productos);
+  await window.electronAPI.saveProductos(productos); // Persistir:contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
   actualizarListaProductos();
 
-  // Limpiar campos y error
+  // Limpiar formulario
   document.getElementById("prodId").value = "";
   document.getElementById("prodNombre").value = "";
   document.getElementById("prodPrecio").value = "";
   errorDiv.textContent = "";
 }
+
 
 function actualizarListaProductos() {
   const ul = document.getElementById("listaProductos");
@@ -60,11 +84,66 @@ function actualizarListaProductos() {
     li.className = "list-group-item d-flex justify-content-between align-items-center";
     li.innerHTML = `
       <span>${prod.id} - ${prod.nombre} ($${prod.precio.toFixed(2)})</span>
-      <button class="btn btn-sm btn-primary" onclick="agregarAlRemito('${prod.id}')">Agregar</button>
+      <div class="btn-group">
+        <button class="btn btn-sm btn-secondary" onclick="editarProducto('${prod.id}')">Editar</button>
+        <button class="btn btn-sm btn-primary" onclick="agregarAlRemito('${prod.id}')">Agregar</button>
+      </div>
     `;
     ul.appendChild(li);
   });
 }
+
+window.editarProducto = (id) => {
+  const p = productos.find(x => x.id === id);
+  if (!p) return;
+
+  // Precargar formulario
+  document.getElementById("prodId").value = p.id;
+  document.getElementById("prodNombre").value = p.nombre;
+  document.getElementById("prodPrecio").value = p.precio;
+
+  // Marcar modo edición
+  editModeId = id;
+
+  // Cambiar texto del botón principal y mostrar cancelar
+  setBotonGuardarModoEdicion(true);
+};
+
+function cancelarEdicion() {
+  editModeId = null;
+  document.getElementById("prodId").value = "";
+  document.getElementById("prodNombre").value = "";
+  document.getElementById("prodPrecio").value = "";
+  document.getElementById("errorAgregarProducto").textContent = "";
+  setBotonGuardarModoEdicion(false);
+}
+
+function setBotonGuardarModoEdicion(modo) {
+  // Cambiar texto del botón “Agregar Producto” y añadir/quitar “Cancelar”
+  const container = document.querySelector('#vistaProductos .card-body'); // tarjeta de alta
+  let btnAgregar = container.querySelector('button.btn.btn-success.mt-3');
+  if (!btnAgregar) return;
+
+  if (modo) {
+    btnAgregar.textContent = "Guardar cambios";
+    // Crear botón Cancelar si no existe
+    let btnCancel = container.querySelector('#btnCancelarEdicion');
+    if (!btnCancel) {
+      btnCancel = document.createElement('button');
+      btnCancel.id = 'btnCancelarEdicion';
+      btnCancel.type = 'button';
+      btnCancel.className = 'btn btn-outline-secondary mt-3 ms-2';
+      btnCancel.textContent = 'Cancelar';
+      btnCancel.onclick = cancelarEdicion;
+      btnAgregar.after(btnCancel);
+    }
+  } else {
+    btnAgregar.textContent = "Agregar Producto";
+    const btnCancel = container.querySelector('#btnCancelarEdicion');
+    if (btnCancel) btnCancel.remove();
+  }
+}
+
 
 // Agregar producto al remito (pone ID en el input y pone foco en cantidad)
 function agregarAlRemito(id) {
